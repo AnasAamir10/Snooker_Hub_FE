@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from "react"
 import SuccessAlert from "./SuccessAlert"
+import { registrationAPI } from "../services/api"
 
 export default function RegisterModal({ tournament, onClose }) {
   const [step, setStep] = useState(1)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
     fullName: "",
     phone: "",
@@ -22,6 +25,8 @@ export default function RegisterModal({ tournament, onClose }) {
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+    // Clear error when user starts typing
+    if (error) setError(null)
   }
 
   const handleFileChange = (e) => {
@@ -32,16 +37,63 @@ export default function RegisterModal({ tournament, onClose }) {
   }
 
   const handleNext = () => {
-    if (step < 3) setStep(step + 1)
+    if (step < 3) {
+      setError(null)
+      setStep(step + 1)
+    }
   }
 
   const handleBack = () => {
-    if (step > 1) setStep(step - 1)
+    if (step > 1) {
+      setError(null)
+      setStep(step - 1)
+    }
   }
 
-  const handleSubmit = () => {
-    console.log("Registration submitted:", formData)
-    setShowSuccess(true)
+  const handleSubmit = async () => {
+    // Validate form data
+    if (!formData.fullName.trim()) {
+      setError("Please enter your full name")
+      return
+    }
+    if (!formData.phone.trim()) {
+      setError("Please enter your phone number")
+      return
+    }
+    if (!formData.paymentSlip) {
+      setError("Please upload a payment slip")
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      // Try multiple possible ID fields
+      const tournamentId = tournament._id || tournament.id || tournament.tournamentId
+
+
+      if (!tournamentId) {
+        console.error("Tournament object structure:", JSON.stringify(tournament, null, 2))
+        throw new Error("Tournament ID is missing. Please refresh the page and try again.")
+      }
+      const result = await registrationAPI.register(
+        tournamentId,
+        formData,
+        formData.paymentSlip
+      )
+
+      if (result.success) {
+        setShowSuccess(true)
+      } else {
+        throw new Error(result.message || "Registration failed")
+      }
+    } catch (err) {
+      console.error("Registration error:", err)
+      setError(err.message || "Failed to submit registration. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleSuccessClose = () => {
@@ -73,7 +125,7 @@ export default function RegisterModal({ tournament, onClose }) {
 
   return (
     <>
-      <style jsx>{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 8px;
         }
@@ -133,11 +185,10 @@ export default function RegisterModal({ tournament, onClose }) {
                 ].map((item) => (
                   <div key={item.num} className="flex flex-col items-center">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${
-                        step >= item.num
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${step >= item.num
                           ? "bg-gradient-to-br from-[#03C05D] to-[#02a04d] text-black shadow-lg shadow-[#03C05D]/50 scale-110"
                           : "bg-gray-800 text-gray-400"
-                      }`}
+                        }`}
                     >
                       {step > item.num ? (
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,9 +199,8 @@ export default function RegisterModal({ tournament, onClose }) {
                       )}
                     </div>
                     <span
-                      className={`mt-2 text-xs font-medium transition-colors ${
-                        step >= item.num ? "text-[#03C05D]" : "text-gray-500"
-                      }`}
+                      className={`mt-2 text-xs font-medium transition-colors ${step >= item.num ? "text-[#03C05D]" : "text-gray-500"
+                        }`}
                     >
                       {item.label}
                     </span>
@@ -224,9 +274,8 @@ export default function RegisterModal({ tournament, onClose }) {
                     {Object.entries(paymentAccounts).map(([key, account]) => (
                       <label
                         key={key}
-                        className={`block cursor-pointer transition-all duration-300 ${
-                          formData.paymentAccount === key ? "scale-[1.02]" : "hover:scale-[1.01]"
-                        }`}
+                        className={`block cursor-pointer transition-all duration-300 ${formData.paymentAccount === key ? "scale-[1.02]" : "hover:scale-[1.01]"
+                          }`}
                       >
                         <input
                           type="radio"
@@ -237,11 +286,10 @@ export default function RegisterModal({ tournament, onClose }) {
                           className="hidden"
                         />
                         <div
-                          className={`bg-[#0a0a0a] border-2 rounded-xl p-5 transition-all ${
-                            formData.paymentAccount === key
+                          className={`bg-[#0a0a0a] border-2 rounded-xl p-5 transition-all ${formData.paymentAccount === key
                               ? "border-[#03C05D] shadow-lg shadow-[#03C05D]/20"
                               : "border-gray-800 hover:border-gray-700"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-start gap-4">
                             <div className="text-4xl">{account.icon}</div>
@@ -324,6 +372,29 @@ export default function RegisterModal({ tournament, onClose }) {
                   <h3 className="text-xl font-bold text-white mb-2">Upload Payment Slip</h3>
                   <p className="text-gray-400 text-sm">Upload proof of payment to complete registration</p>
                 </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                    <div className="flex gap-3">
+                      <svg
+                        className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-semibold text-red-300 mb-1">Error</p>
+                        <p className="text-red-200 text-sm">{error}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-[#0a0a0a] border-2 border-dashed border-gray-800 hover:border-[#03C05D]/50 rounded-xl p-8 text-center transition-all cursor-pointer group">
                   <label className="cursor-pointer block">
@@ -439,10 +510,20 @@ export default function RegisterModal({ tournament, onClose }) {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  disabled={!formData.paymentSlip}
-                  className="px-8 py-2.5 bg-gradient-to-r from-[#03C05D] to-[#02a04d] hover:from-[#02a04d] hover:to-[#028a42] text-black font-bold rounded-xl transition-all shadow-lg hover:shadow-[#03C05D]/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 hover:scale-105"
+                  disabled={!formData.paymentSlip || isSubmitting}
+                  className="px-8 py-2.5 bg-gradient-to-r from-[#03C05D] to-[#02a04d] hover:from-[#02a04d] hover:to-[#028a42] text-black font-bold rounded-xl transition-all shadow-lg hover:shadow-[#03C05D]/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 hover:scale-105 flex items-center gap-2"
                 >
-                  Submit Registration
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Registration"
+                  )}
                 </button>
               )}
             </div>
