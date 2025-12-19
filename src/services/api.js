@@ -10,18 +10,18 @@ const getToken = () => {
 // Helper function to get headers
 const getHeaders = (includeAuth = true, isFormData = false) => {
   const headers = {};
-  
+
   if (!isFormData) {
     headers['Content-Type'] = 'application/json';
   }
-  
+
   if (includeAuth) {
     const token = getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
   }
-  
+
   return headers;
 };
 
@@ -29,12 +29,12 @@ const getHeaders = (includeAuth = true, isFormData = false) => {
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   const { method = 'GET', body, includeAuth = true, isFormData = false } = options;
-  
+
   const config = {
     method,
     headers: getHeaders(includeAuth, isFormData),
   };
-  
+
   if (body) {
     if (isFormData) {
       config.body = body;
@@ -42,15 +42,14 @@ const apiRequest = async (endpoint, options = {}) => {
       config.body = JSON.stringify(body);
     }
   }
-  
   try {
     const response = await fetch(url, config);
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.error || data.message || 'Request failed');
     }
-    
+
     return data;
   } catch (error) {
     console.error('API Error:', error);
@@ -67,7 +66,7 @@ export const authAPI = {
       includeAuth: false,
     });
   },
-  
+
   login: async (email, password) => {
     return apiRequest('/users/login', {
       method: 'POST',
@@ -90,7 +89,7 @@ export const tournamentAPI = {
       } else if (t.image) {
         imageUrl = t.image.startsWith('http') ? t.image : `${BACKEND_BASE_URL}/uploads/${t.image}`;
       }
-      
+
       return {
         id: t._id,
         name: t.title,
@@ -104,18 +103,18 @@ export const tournamentAPI = {
       };
     });
   },
-  
+
   getById: async (id) => {
     const data = await apiRequest(`/tournaments/${id}`);
     const t = data.tournament;
-    
+
     let imageUrl = '';
     if (t.imageUrl) {
       imageUrl = t.imageUrl.startsWith('http') ? t.imageUrl : `${BACKEND_BASE_URL}${t.imageUrl}`;
     } else if (t.image) {
       imageUrl = t.image.startsWith('http') ? t.image : `${BACKEND_BASE_URL}/uploads/${t.image}`;
     }
-    
+
     return {
       id: t._id,
       name: t.title,
@@ -128,17 +127,17 @@ export const tournamentAPI = {
       status: t.status,
     };
   },
-  
+
   create: async (tournamentData, imageFile = null) => {
     const formData = new FormData();
-    
+
     // Add tournament data
     formData.append('name', tournamentData.name);
     formData.append('date', tournamentData.date);
     formData.append('fee', tournamentData.fee);
     formData.append('description', tournamentData.description || '');
     formData.append('maxPlayers', tournamentData.maxPlayers || 32);
-    
+
     // Add image file if provided
     if (imageFile) {
       formData.append('image', imageFile);
@@ -146,17 +145,17 @@ export const tournamentAPI = {
       // If image URL is provided, use it
       formData.append('imageUrl', tournamentData.image);
     }
-    
+
     return apiRequest('/tournaments', {
       method: 'POST',
       body: formData,
       isFormData: true,
     });
   },
-  
+
   update: async (id, tournamentData, imageFile = null) => {
     const formData = new FormData();
-    
+
     // Add tournament data
     formData.append('name', tournamentData.name);
     formData.append('date', tournamentData.date);
@@ -165,21 +164,21 @@ export const tournamentAPI = {
     if (tournamentData.maxPlayers) {
       formData.append('maxPlayers', tournamentData.maxPlayers);
     }
-    
+
     // Add image file if provided
     if (imageFile) {
       formData.append('image', imageFile);
     } else if (tournamentData.image) {
       formData.append('imageUrl', tournamentData.image);
     }
-    
+
     return apiRequest(`/tournaments/${id}`, {
       method: 'PUT',
       body: formData,
       isFormData: true,
     });
   },
-  
+
   delete: async (id) => {
     return apiRequest(`/tournaments/${id}`, {
       method: 'DELETE',
@@ -193,19 +192,19 @@ export const userAPI = {
     const data = await apiRequest('/users');
     return data.users;
   },
-  
+
   getById: async (id) => {
     const data = await apiRequest(`/users/${id}`);
     return data.user;
   },
-  
+
   update: async (id, userData) => {
     return apiRequest(`/users/${id}`, {
       method: 'PUT',
       body: userData,
     });
   },
-  
+
   delete: async (id) => {
     return apiRequest(`/users/${id}`, {
       method: 'DELETE',
@@ -219,31 +218,53 @@ export const registrationAPI = {
     const data = await apiRequest('/registrations');
     return data.registrations || [];
   },
-  
+
   getById: async (id) => {
     const data = await apiRequest(`/registrations/${id}`);
     return data.registration;
   },
-  
-  register: async (tournamentId) => {
+
+  register: async (tournamentId, registrationData, paymentSlipFile = null) => {
+    // Ensure tournamentId is a string
+    const tournamentIdStr = String(tournamentId).trim();
+
+    if (!tournamentIdStr) {
+      throw new Error('Tournament ID is required');
+    }
+
+    // Backend currently expects JSON (not FormData) since no multer middleware is configured
+    // Send as JSON - backend checks for 'tournament' or 'tournamentId'
+    const requestBody = {
+      tournament: tournamentIdStr,
+      tournamentId: tournamentIdStr,
+      // Include additional fields if backend is updated to handle them
+      name: registrationData?.fullName,
+      phone: registrationData?.phone,
+      paymentAccount: registrationData?.paymentAccount,
+      // Note: File upload requires FormData + multer middleware on backend
+      // For now, file upload is not supported until backend adds multer
+    };
+
+
     return apiRequest('/registrations', {
       method: 'POST',
-      body: { tournament: tournamentId, tournamentId: tournamentId },
+      body: requestBody,
+      isFormData: false, // Send as JSON since backend doesn't have multer yet
     });
   },
-  
+
   getByTournament: async (tournamentId) => {
     const data = await apiRequest(`/registrations/tournament/${tournamentId}`);
     return data.registrations || [];
   },
-  
+
   update: async (id, updateData) => {
     return apiRequest(`/registrations/${id}`, {
       method: 'PUT',
       body: updateData,
     });
   },
-  
+
   cancel: async (id) => {
     return apiRequest(`/registrations/${id}`, {
       method: 'DELETE',
