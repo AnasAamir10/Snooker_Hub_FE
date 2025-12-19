@@ -61,7 +61,7 @@ export default function Reviews() {
       className="relative py-28 px-6 lg:px-12 overflow-hidden bg-gradient-to-r from-[#1a1a1a] to-[#0d0d0d] text-white"
     >
       {/* Keyframes for infinite horizontal scroll */}
-      <style jsx>{`
+      <style>{`
         @keyframes scrollLeft {
           0% {
             transform: translateX(0);
